@@ -53,6 +53,7 @@ The CLI is a thin layer over typed modules you can import in your own scripts:
 | `src/messenger/voice.ts` | `transcribe`: voice note to text through your hook |
 | `src/messenger/thread-ledger.ts` | `ThreadLedger`: every thread the Dori posts in, persisted; given to `Slack`, it records each `chat.postMessage` (also raw `call`s) |
 | `src/messenger/slack-inbound.ts` | `pollSlackInbound`: threads view, the ledger's threads and unread counts, deduplicated, own messages filtered |
+| `src/messenger/telegram-inbound.ts` | `pollTelegramInbound`: owner-gated `getUpdates` long-poll, persisted offset, DM + configured topic only |
 | `src/messenger/slack-presence.ts` | `slackPresence`: hold a user account active |
 | `src/routing.ts` | `canLaunch`, `idleLaneFor`: the routing checks |
 
@@ -156,6 +157,13 @@ Prints `INBOUND <source> <channel> <thread> <ts> <user> <text>`. It reads from t
 - `unread`: DMs, group DMs and channels with unread mentions.
 
 The Dori's own messages and bot messages are skipped. Every message the Dori posts records its thread in `<stateDir>/slack-threads.json`, whichever helper sends it, so a guest's untagged reply under a root posted with a raw API call is still found.
+
+### `dori inbound telegram [--loop MIN]`
+Prints `INBOUND <source> <chat> <thread> <update-id> <from> <text>` — `source` is `dm` or `topic`. Long-polls `getUpdates`:
+- only the configured owner's messages pass (`DORI_TELEGRAM_OWNER_ID`); bot messages never do;
+- DMs from the owner always pass; in a group (`DORI_TELEGRAM_GROUP_ID`) only the configured topic (`DORI_TELEGRAM_TOPIC_ID`) does — with no group configured, DMs only;
+- the offset is persisted to `<stateDir>/telegram-offset` before filtering, so a restart neither replays nor drops updates;
+- reuses the bot token the skill already stores (`DORI_TELEGRAM_TOKEN`).
 
 ### `dori transcribe <audio-file>`
 Runs `hooks.transcribe` and prints the transcript. A failed or empty transcription is an error, never an empty message.

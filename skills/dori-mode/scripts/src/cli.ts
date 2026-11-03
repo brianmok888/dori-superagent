@@ -20,6 +20,7 @@ import { canLaunch } from "./routing.ts";
 import { fetchHttp, MessengerError, UnsafeMessageError } from "./messenger/http.ts";
 import { Slack } from "./messenger/slack.ts";
 import { pollSlackInbound } from "./messenger/slack-inbound.ts";
+import { fileTgInboundStore, pollTelegramInbound } from "./messenger/telegram-inbound.ts";
 import { ThreadLedger } from "./messenger/thread-ledger.ts";
 import { slackPresence } from "./messenger/slack-presence.ts";
 import { Telegram } from "./messenger/telegram.ts";
@@ -62,7 +63,7 @@ const USAGE = `dori <command> [options]
                                        post or edit a message (tokens from DORI_SLACK_TOKEN, DORI_TELEGRAM_TOKEN, DORI_DISCORD_TOKEN)
   presence <slack|discord>             keep the account shown as online until stopped
   transcribe <audio-file>              run hooks.transcribe and print the text
-  inbound slack [--loop MIN]           print INBOUND lines: unread thread replies (threads view), replies in threads
+  inbound slack|telegram [--loop MIN]  print INBOUND lines: Slack unread thread replies / Telegram owner DMs + configured topic
                                        the Dori posted in (any helper), DMs and channels with unread mentions`;
 
 const die = (message: string, code = 1): never => {
@@ -352,7 +353,19 @@ try {
       break;
     }
     case "inbound": {
-      if (key !== "slack") die("inbound supports slack");
+      if (key === "telegram") {
+        const tg = new Telegram(fetchHttp, realClock, process.env.DORI_TELEGRAM_TOKEN ?? die("DORI_TELEGRAM_TOKEN is not set"));
+        const store = fileTgInboundStore(`${config.stateDir}/telegram-offset`);
+        const ownerId = Number(process.env.DORI_TELEGRAM_OWNER_ID ?? die("DORI_TELEGRAM_OWNER_ID is not set"));
+        const groupChatId = process.env.DORI_TELEGRAM_GROUP_ID === undefined ? undefined : Number(process.env.DORI_TELEGRAM_GROUP_ID);
+        const topicId = process.env.DORI_TELEGRAM_TOPIC_ID === undefined ? undefined : Number(process.env.DORI_TELEGRAM_TOPIC_ID);
+        console.log(`INBOUND_READY telegram owner=${ownerId} group=${groupChatId ?? "-"} topic=${topicId ?? "-"}`);
+        await every(loopMin, async () => {
+          for (const i of await pollTelegramInbound(tg, store, { ownerId, groupChatId, topicId })) console.log(`INBOUND ${i.source} ${i.chat} ${i.thread ?? "-"} ${i.updateId} ${i.from} ${JSON.stringify((i.text ?? "").slice(0, 200))}`);
+        });
+        break;
+      }
+      if (key !== "slack") die("inbound supports slack or telegram");
       const auth = { token: process.env.DORI_SLACK_TOKEN ?? die("DORI_SLACK_TOKEN is not set"), cookie: process.env.DORI_SLACK_COOKIE };
       const ledger = new ThreadLedger(`${config.stateDir}/slack-threads.json`);
       const slack = new Slack(fetchHttp, realClock, auth, undefined, ledger);
