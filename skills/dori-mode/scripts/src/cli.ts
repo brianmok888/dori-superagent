@@ -370,7 +370,7 @@ try {
           // Full text, JSON-escaped on one line: getUpdates cannot fetch a message twice.
           await pollTelegramInbound(tg, store, { ownerId, groupChatId, topicId }, (i) =>
             console.log(
-              `INBOUND ${i.kind} ${i.source} ${i.chat} ${i.thread ?? "-"} ${i.updateId} ${i.from} ${JSON.stringify(i.text ?? "")}` +
+              `INBOUND ${i.kind === "edit" ? "edit:" : ""}${i.source} ${i.chat} ${i.thread ?? "-"} ${i.updateId} ${i.from} ${JSON.stringify(i.text ?? "")}` +
                 (i.media === undefined ? "" : ` file=${i.media.kind}:${i.media.fileId}`),
             ));
         });

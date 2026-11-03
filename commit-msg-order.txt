@@ -1,0 +1,6 @@
+fix(dori-mode): telegram edits keep Slack's INBOUND field order
+
+Per review on the #77 work: the kind token moved fields around; restore
+the Slack order and mark edits through the source instead —
+`INBOUND edit:dm ...` / `INBOUND edit:topic ...`. Media stays a trailing
+`file=<kind>:<file_id>`. Suite unchanged: 264 pass, tsc clean.
