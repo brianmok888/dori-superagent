@@ -162,7 +162,8 @@ The Dori's own messages and bot messages are skipped. Every message the Dori pos
 Prints `INBOUND <source> <chat> <thread> <update-id> <from> <text>` — `source` is `dm` or `topic`. Long-polls `getUpdates`:
 - only the configured owner's messages pass (`DORI_TELEGRAM_OWNER_ID`); bot messages never do;
 - DMs from the owner always pass; in a group (`DORI_TELEGRAM_GROUP_ID`) only the configured topic (`DORI_TELEGRAM_TOPIC_ID`) does — with no group configured, DMs only;
-- the offset is persisted to `<stateDir>/telegram-offset` before filtering, so a restart neither replays nor drops updates;
+- delivery is at-least-once: the offset in `<stateDir>/telegram-offset` advances past a message only after its `INBOUND` line is out (dropped updates advance immediately), so a crash replays at worst the unprinted lines — duplicates carry the same update id;
+- the full text is printed, JSON-escaped on one line: `getUpdates` cannot fetch a message again;
 - reuses the bot token the skill already stores (`DORI_TELEGRAM_TOKEN`).
 
 ### `dori transcribe <audio-file>`

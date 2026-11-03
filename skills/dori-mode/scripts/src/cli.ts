@@ -356,12 +356,20 @@ try {
       if (key === "telegram") {
         const tg = new Telegram(fetchHttp, realClock, process.env.DORI_TELEGRAM_TOKEN ?? die("DORI_TELEGRAM_TOKEN is not set"));
         const store = fileTgInboundStore(`${config.stateDir}/telegram-offset`);
-        const ownerId = Number(process.env.DORI_TELEGRAM_OWNER_ID ?? die("DORI_TELEGRAM_OWNER_ID is not set"));
-        const groupChatId = process.env.DORI_TELEGRAM_GROUP_ID === undefined ? undefined : Number(process.env.DORI_TELEGRAM_GROUP_ID);
-        const topicId = process.env.DORI_TELEGRAM_TOPIC_ID === undefined ? undefined : Number(process.env.DORI_TELEGRAM_TOPIC_ID);
+        const num = (name: string): number => {
+          const raw = process.env[name] ?? die(`${name} is not set`);
+          const n = Number(raw);
+          if (!Number.isSafeInteger(n)) die(`${name} must be an integer, got: ${raw}`);
+          return n;
+        };
+        const ownerId = num("DORI_TELEGRAM_OWNER_ID");
+        const groupChatId = process.env.DORI_TELEGRAM_GROUP_ID === undefined ? undefined : num("DORI_TELEGRAM_GROUP_ID");
+        const topicId = process.env.DORI_TELEGRAM_TOPIC_ID === undefined ? undefined : num("DORI_TELEGRAM_TOPIC_ID");
         console.log(`INBOUND_READY telegram owner=${ownerId} group=${groupChatId ?? "-"} topic=${topicId ?? "-"}`);
         await every(loopMin, async () => {
-          for (const i of await pollTelegramInbound(tg, store, { ownerId, groupChatId, topicId })) console.log(`INBOUND ${i.source} ${i.chat} ${i.thread ?? "-"} ${i.updateId} ${i.from} ${JSON.stringify((i.text ?? "").slice(0, 200))}`);
+          // Full text, JSON-escaped on one line: getUpdates cannot fetch a message twice.
+          await pollTelegramInbound(tg, store, { ownerId, groupChatId, topicId }, (i) =>
+            console.log(`INBOUND ${i.source} ${i.chat} ${i.thread ?? "-"} ${i.updateId} ${i.from} ${JSON.stringify(i.text ?? "")}`));
         });
         break;
       }
