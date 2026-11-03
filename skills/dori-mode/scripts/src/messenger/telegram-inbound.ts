@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
 import type { Telegram } from "./telegram.ts";
 
@@ -33,6 +34,9 @@ export const fileTgInboundStore = (path: string): TgInboundStore => ({
     }
   },
   save(offset: number): void {
+    // The state dir may not exist yet on a fresh install; without this the first save
+    // fails with ENOENT and the same update is re-printed every tick.
+    mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, String(offset));
   },
 });
@@ -42,11 +46,22 @@ type TgMessage = {
   readonly message_id?: number;
   readonly from?: TgUser;
   readonly chat?: { readonly id: number; readonly type?: string };
+  readonly is_topic_message?: boolean;
   readonly message_thread_id?: number;
   readonly text?: string;
   readonly caption?: string;
 };
 type TgUpdate = { readonly update_id: number; readonly message?: TgMessage };
+
+/**
+ * The topic a message belongs to, when it is a topic message. `message_thread_id` alone
+ * is not it: for a reply in a forum's General topic Telegram puts the reply root's id
+ * there, not the topic id (telegram-bot-api#447), and in a private chat run with topics
+ * it only marks topic messages. `is_topic_message` is the reliable signal, so General
+ * (replies included) resolves to no thread — callers treat it as topic 1 — and a
+ * private-chat topic message keeps its thread.
+ */
+const threadOf = (m: TgMessage): number | undefined => (m.is_topic_message === true ? m.message_thread_id ?? 1 : undefined);
 
 /**
  * Poll `getUpdates` once and hand every kept message to `emit` as it is processed.
@@ -72,7 +87,10 @@ export const pollTelegramInbound = async (
       if (m.chat?.type === "private" && Number(m.chat.id) === opts.ownerId) keep = true;
       else if ((m.chat?.type === "group" || m.chat?.type === "supergroup") && opts.groupChatId !== undefined && Number(m.chat.id) === opts.groupChatId) {
         // De-conflict: in a forum group the Dori only ever listens to its own topic.
-        keep = opts.topicId === undefined || (m.message_thread_id ?? 1) === opts.topicId;
+        // General counts as topic 1 — including replies there, whose reply-root id in
+        // message_thread_id is not a topic id.
+        const topic = threadOf(m) ?? 1;
+        keep = opts.topicId === undefined || topic === opts.topicId;
       }
     }
     if (!keep) {
@@ -80,10 +98,11 @@ export const pollTelegramInbound = async (
       continue;
     }
     const source = m!.chat!.type === "private" ? "dm" : "topic";
+    const thread = source === "topic" ? threadOf(m!) ?? 1 : threadOf(m!);
     const inbound: TgInbound = {
       source,
       chat: Number(m!.chat!.id),
-      ...(source === "topic" ? { thread: m!.message_thread_id ?? 1 } : {}),
+      ...(thread === undefined ? {} : { thread }),
       updateId: u.update_id,
       from: m!.from!.id,
       ...(m!.from!.username === undefined ? {} : { username: m!.from!.username }),
