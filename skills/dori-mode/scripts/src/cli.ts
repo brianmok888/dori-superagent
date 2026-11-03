@@ -63,7 +63,7 @@ const USAGE = `dori <command> [options]
                                        post or edit a message (tokens from DORI_SLACK_TOKEN, DORI_TELEGRAM_TOKEN, DORI_DISCORD_TOKEN)
   presence <slack|discord>             keep the account shown as online until stopped
   transcribe <audio-file>              run hooks.transcribe and print the text
-  inbound slack|telegram [--loop MIN]  print INBOUND lines: Slack unread thread replies / Telegram owner DMs + configured topic
+  inbound slack|telegram [--loop MIN]  print INBOUND lines: Slack unread thread replies / Telegram owner DMs, edits and media + configured topic
                                        the Dori posted in (any helper), DMs and channels with unread mentions`;
 
 const die = (message: string, code = 1): never => {
@@ -369,7 +369,10 @@ try {
         await every(loopMin, async () => {
           // Full text, JSON-escaped on one line: getUpdates cannot fetch a message twice.
           await pollTelegramInbound(tg, store, { ownerId, groupChatId, topicId }, (i) =>
-            console.log(`INBOUND ${i.source} ${i.chat} ${i.thread ?? "-"} ${i.updateId} ${i.from} ${JSON.stringify(i.text ?? "")}`));
+            console.log(
+              `INBOUND ${i.kind} ${i.source} ${i.chat} ${i.thread ?? "-"} ${i.updateId} ${i.from} ${JSON.stringify(i.text ?? "")}` +
+                (i.media === undefined ? "" : ` file=${i.media.kind}:${i.media.fileId}`),
+            ));
         });
         break;
       }

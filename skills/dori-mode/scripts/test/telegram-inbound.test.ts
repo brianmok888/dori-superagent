@@ -14,7 +14,7 @@ const TOPIC = 3;
 const state = withState();
 afterEach(() => {});
 
-type U = { update_id: number; message?: unknown };
+type U = { update_id: number; message?: unknown; edited_message?: unknown };
 
 const msg = (from: number, chatId: number, type: string, text: string, thread?: number, isTopicMessage?: boolean) => ({
   message_id: 1,
@@ -166,4 +166,44 @@ test("the store creates its state dir on first save", async () => {
   const out = await pollTelegramInbound(mk(http), store, { ownerId: OWNER });
   expect(out.length).toBe(1);
   expect(store.load()).toBe(81);
+});
+
+test("edited messages arrive as their own edit kind with the edited text", async () => {
+  const { http, bodies } = telegramFake([
+    [{ update_id: 90, edited_message: { ...msg(OWNER, OWNER, "private", "fixed typo"), edit_date: 1730 } }],
+    [{ update_id: 91, message: msg(OWNER, OWNER, "private", "fresh after edit") }],
+  ]);
+  const store = fileTgInboundStore(join(state.dir, "tg-off-9"));
+  const out = await pollTelegramInbound(mk(http), store, { ownerId: OWNER });
+  expect(out.length).toBe(1);
+  expect(out[0]!.kind).toBe("edit");
+  expect(out[0]!.text).toBe("fixed typo");
+  expect(store.load()).toBe(91);
+  expect(bodies[0]!.allowed_updates).toEqual(["message", "edited_message"]);
+  const second = await pollTelegramInbound(mk(http), store, { ownerId: OWNER });
+  expect(second[0]!.kind).toBe("message");
+});
+
+test("a voice note identifies its media so transcribe can fetch it", async () => {
+  const { http } = telegramFake([
+    [{ update_id: 100, message: { message_id: 55, from: { id: OWNER, is_bot: false, username: "owner" }, chat: { id: OWNER, type: "private" }, voice: { file_id: "FID_VOICE", duration: 9 } } }],
+  ]);
+  const store = fileTgInboundStore(join(state.dir, "tg-off-10"));
+  const out = await pollTelegramInbound(mk(http), store, { ownerId: OWNER });
+  expect(out.length).toBe(1);
+  expect(out[0]!.kind).toBe("message");
+  expect(out[0]!.text).toBeUndefined();
+  expect(out[0]!.media).toEqual({ kind: "voice", fileId: "FID_VOICE", messageId: 55 });
+  expect(store.load()).toBe(101);
+});
+
+test("a photo with a caption carries both the text and the largest photo", async () => {
+  const { http } = telegramFake([
+    [{ update_id: 110, message: { message_id: 56, from: { id: OWNER, is_bot: false, username: "owner" }, chat: { id: OWNER, type: "private" }, photo: [{ file_id: "SMALL" }, { file_id: "LARGE" }], caption: "look at this" } }],
+  ]);
+  const store = fileTgInboundStore(join(state.dir, "tg-off-11"));
+  const out = await pollTelegramInbound(mk(http), store, { ownerId: OWNER });
+  expect(out.length).toBe(1);
+  expect(out[0]!.text).toBe("look at this");
+  expect(out[0]!.media).toEqual({ kind: "photo", fileId: "LARGE", messageId: 56 });
 });

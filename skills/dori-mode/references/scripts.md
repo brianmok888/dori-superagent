@@ -159,11 +159,12 @@ Prints `INBOUND <source> <channel> <thread> <ts> <user> <text>`. It reads from t
 The Dori's own messages and bot messages are skipped. Every message the Dori posts records its thread in `<stateDir>/slack-threads.json`, whichever helper sends it, so a guest's untagged reply under a root posted with a raw API call is still found.
 
 ### `dori inbound telegram [--loop MIN]`
-Prints `INBOUND <source> <chat> <thread> <update-id> <from> <text>` — `source` is `dm` or `topic`. Long-polls `getUpdates`:
+Prints `INBOUND <kind> <source> <chat> <thread> <update-id> <from> <text>` — `kind` is `message` or `edit`, `source` is `dm` or `topic`. A media message appends ` file=<kind>:<file_id>` (voice, audio, video, video_note, animation, document, photo) so the file can be fetched for `dori transcribe`. Long-polls `getUpdates`:
 - only the configured owner's messages pass (`DORI_TELEGRAM_OWNER_ID`); bot messages never do;
 - DMs from the owner always pass; in a group (`DORI_TELEGRAM_GROUP_ID`) only the configured topic (`DORI_TELEGRAM_TOPIC_ID`) does — with a group but no topic, every owner message in the group passes — with no group configured, DMs only;
 - delivery is at-least-once: the offset in `<stateDir>/telegram-offset` advances past a message only after its `INBOUND` line is out (dropped updates advance immediately), so a crash replays at worst the unprinted lines — duplicates carry the same update id;
 - the full text is printed, JSON-escaped on one line: `getUpdates` cannot fetch a message again;
+- edits arrive too: `edited_message` updates are polled and printed as their own `edit` kind, carrying the edited text;
 - reuses the bot token the skill already stores (`DORI_TELEGRAM_TOKEN`).
 
 ### `dori transcribe <audio-file>`

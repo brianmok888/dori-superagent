@@ -1,0 +1,14 @@
+feat(dori-mode): telegram inbound — edits and media identification
+
+Implements #77 on top of #76:
+- edited_message updates are polled (allowed_updates) and printed as
+  their own INBOUND kind (`message` | `edit`), carrying the edited text;
+  edits pass the same owner/topic gates as new messages
+- media messages identify themselves: voice, audio, video, video_note,
+  animation, document and photo (largest variant) append
+  `file=<kind>:<file_id>` with the message id, so a voice note can be
+  fetched for dori transcribe instead of printing as empty text
+- INBOUND line gains the kind token: `INBOUND <kind> <source> <chat>
+  <thread> <update-id> <from> <text>[ file=<kind>:<file_id>]`
+- tests: edit kind + edited text + mixed batch, voice note media
+  identity, photo-with-caption text + largest photo; suite 264 pass
