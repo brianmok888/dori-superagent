@@ -30,6 +30,19 @@ export type TgInboundOptions = {
   readonly topicId?: number;
 };
 
+/**
+ * Env ints accept only /^-?\d+$/ after trimming; empty, whitespace-only, `1e3` and
+ * `0x10` are refused at start with an error that names the variable.
+ */
+export const envInt = (name: string, raw: string | undefined): number => {
+  if (raw === undefined) throw new Error(`${name} is not set`);
+  const trimmed = raw.trim();
+  if (!/^-?\d+$/.test(trimmed)) throw new Error(`${name} must be an integer, got: ${JSON.stringify(raw)}`);
+  const n = Number(trimmed);
+  if (!Number.isSafeInteger(n)) throw new Error(`${name} must be an integer, got: ${JSON.stringify(raw)}`);
+  return n;
+};
+
 export type TgInboundStore = { load(): number; save(offset: number): void };
 
 export const fileTgInboundStore = (path: string): TgInboundStore => ({

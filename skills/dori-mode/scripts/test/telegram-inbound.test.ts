@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import type { Http, HttpRequest, HttpResponse } from "../src/messenger/http.ts";
 import { Telegram } from "../src/messenger/telegram.ts";
-import { fileTgInboundStore, pollTelegramInbound } from "../src/messenger/telegram-inbound.ts";
+import { envInt, fileTgInboundStore, pollTelegramInbound } from "../src/messenger/telegram-inbound.ts";
 import { fakeClock, withState } from "./fakes.ts";
 
 const OWNER = 5250;
@@ -227,4 +227,14 @@ test("an unparseable offset warns once and restarts from 0", () => {
   expect(warns).toHaveLength(1);
   expect(warns[0]).toContain("WARN");
   expect(warns[0]).toContain("unparseable");
+});
+
+test("envInt refuses empty, whitespace, 1e3 and 0x10; accepts plain integers", () => {
+  for (const v of ["", "   ", "1e3", "0x10", "12.5", "abc", "99999999999999999999"]) {
+    expect(() => envInt("DORI_TELEGRAM_OWNER_ID", v)).toThrow(`DORI_TELEGRAM_OWNER_ID must be an integer, got: ${JSON.stringify(v)}`);
+  }
+  expect(() => envInt("DORI_TELEGRAM_OWNER_ID", undefined)).toThrow("DORI_TELEGRAM_OWNER_ID is not set");
+  expect(envInt("DORI_TELEGRAM_OWNER_ID", " 42 ")).toBe(42);
+  expect(envInt("DORI_TELEGRAM_TOPIC_ID", "-5")).toBe(-5);
+  expect(envInt("DORI_TELEGRAM_GROUP_ID", "0")).toBe(0);
 });

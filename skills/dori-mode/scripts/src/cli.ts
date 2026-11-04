@@ -20,7 +20,7 @@ import { canLaunch } from "./routing.ts";
 import { fetchHttp, MessengerError, UnsafeMessageError } from "./messenger/http.ts";
 import { Slack } from "./messenger/slack.ts";
 import { pollSlackInbound } from "./messenger/slack-inbound.ts";
-import { fileTgInboundStore, pollTelegramInbound } from "./messenger/telegram-inbound.ts";
+import { envInt, fileTgInboundStore, pollTelegramInbound } from "./messenger/telegram-inbound.ts";
 import { ThreadLedger } from "./messenger/thread-ledger.ts";
 import { slackPresence } from "./messenger/slack-presence.ts";
 import { Telegram } from "./messenger/telegram.ts";
@@ -357,10 +357,11 @@ try {
         const tg = new Telegram(fetchHttp, realClock, process.env.DORI_TELEGRAM_TOKEN ?? die("DORI_TELEGRAM_TOKEN is not set"));
         const store = fileTgInboundStore(`${config.stateDir}/telegram-offset`);
         const num = (name: string): number => {
-          const raw = process.env[name] ?? die(`${name} is not set`);
-          const n = Number(raw);
-          if (!Number.isSafeInteger(n)) die(`${name} must be an integer, got: ${raw}`);
-          return n;
+          try {
+            return envInt(name, process.env[name]);
+          } catch (e) {
+            return die(e instanceof Error ? e.message : String(e));
+          }
         };
         const ownerId = num("DORI_TELEGRAM_OWNER_ID");
         const groupChatId = process.env.DORI_TELEGRAM_GROUP_ID === undefined ? undefined : num("DORI_TELEGRAM_GROUP_ID");

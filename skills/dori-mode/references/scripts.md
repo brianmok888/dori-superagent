@@ -165,6 +165,7 @@ Prints `INBOUND <source> <chat> <thread> <update-id> <from> <text>[ file=<kind>:
 - delivery is at-least-once: the offset in `<stateDir>/telegram-offset` advances past a message only after its `INBOUND` line is out (dropped updates advance immediately), so a crash replays at worst the unprinted lines — duplicates carry the same update id;
 - the full text is printed, JSON-escaped on one line: `getUpdates` cannot fetch a message again;
 - edits arrive too: `edited_message` updates are polled and printed as their own `edit` kind, carrying the edited text;
+- env ids are validated at start — `DORI_TELEGRAM_OWNER_ID`, `DORI_TELEGRAM_GROUP_ID` and `DORI_TELEGRAM_TOPIC_ID` must match `/^-?\d+$/` after trimming; empty, whitespace-only, `1e3` and `0x10` are refused with an error naming the variable;
 - reuses the bot token the skill already stores (`DORI_TELEGRAM_TOKEN`).
 
 ### `dori transcribe <audio-file>`
