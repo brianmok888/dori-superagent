@@ -1,4 +1,5 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, test } from "bun:test";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Http, HttpRequest, HttpResponse } from "../src/messenger/http.ts";
@@ -12,7 +13,10 @@ const GROUP = -1004;
 const TOPIC = 3;
 
 const state = withState();
-afterEach(() => {});
+// The store's dir is shared across tests; recreate it fresh for each so the
+// previous test's offset never bleeds in, and remove it so nothing leaks.
+beforeEach(() => mkdirSync(state.dir, { recursive: true }));
+afterEach(() => state.done());
 
 type U = { update_id: number; message?: unknown; edited_message?: unknown };
 
@@ -206,4 +210,21 @@ test("a photo with a caption carries both the text and the largest photo", async
   expect(out.length).toBe(1);
   expect(out[0]!.text).toBe("look at this");
   expect(out[0]!.media).toEqual({ kind: "photo", fileId: "LARGE", messageId: 56 });
+});
+
+test("an unparseable offset warns once and restarts from 0", () => {
+  writeFileSync(join(state.dir, "telegram-offset"), "not-a-number");
+  const warns: string[] = [];
+  const orig = console.error;
+  console.error = (s?: unknown) => {
+    warns.push(String(s));
+  };
+  try {
+    expect(fileTgInboundStore(join(state.dir, "telegram-offset")).load()).toBe(0);
+  } finally {
+    console.error = orig;
+  }
+  expect(warns).toHaveLength(1);
+  expect(warns[0]).toContain("WARN");
+  expect(warns[0]).toContain("unparseable");
 });

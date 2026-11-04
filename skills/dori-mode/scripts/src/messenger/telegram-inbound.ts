@@ -35,9 +35,15 @@ export type TgInboundStore = { load(): number; save(offset: number): void };
 export const fileTgInboundStore = (path: string): TgInboundStore => ({
   load(): number {
     try {
-      return Number(readFileSync(path, "utf8").trim()) || 0;
+      const n = Number(readFileSync(path, "utf8").trim());
+      if (!Number.isSafeInteger(n) || n < 0) {
+        // A corrupt offset must not silently replay the whole history.
+        console.error(`WARN telegram-offset at ${path} is unparseable (${n}); restarting from 0`);
+        return 0;
+      }
+      return n;
     } catch {
-      return 0;
+      return 0; // no file yet: a fresh start, not a warning
     }
   },
   save(offset: number): void {

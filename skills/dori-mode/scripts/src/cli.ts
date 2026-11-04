@@ -366,14 +366,25 @@ try {
         const groupChatId = process.env.DORI_TELEGRAM_GROUP_ID === undefined ? undefined : num("DORI_TELEGRAM_GROUP_ID");
         const topicId = process.env.DORI_TELEGRAM_TOPIC_ID === undefined ? undefined : num("DORI_TELEGRAM_TOPIC_ID");
         console.log(`INBOUND_READY telegram owner=${ownerId} group=${groupChatId ?? "-"} topic=${topicId ?? "-"}`);
-        await every(loopMin, async () => {
+        for (;;) {
           // Full text, JSON-escaped on one line: getUpdates cannot fetch a message twice.
-          await pollTelegramInbound(tg, store, { ownerId, groupChatId, topicId }, (i) =>
-            console.log(
-              `INBOUND ${i.kind === "edit" ? "edit:" : ""}${i.source} ${i.chat} ${i.thread ?? "-"} ${i.updateId} ${i.from} ${JSON.stringify(i.text ?? "")}` +
-                (i.media === undefined ? "" : ` file=${i.media.kind}:${i.media.fileId}`),
-            ));
-        });
+          let emitted = 0;
+          try {
+            emitted = (await pollTelegramInbound(tg, store, { ownerId, groupChatId, topicId }, (i) =>
+              console.log(
+                `INBOUND ${i.kind === "edit" ? "edit:" : ""}${i.source} ${i.chat} ${i.thread ?? "-"} ${i.updateId} ${i.from} ${JSON.stringify(i.text ?? "")}` +
+                  (i.media === undefined ? "" : ` file=${i.media.kind}:${i.media.fileId}`),
+              ))).length;
+          } catch (e) {
+            console.log(`WARN ${e instanceof Error ? e.message : String(e)}`.slice(0, 300));
+          }
+          // The 25s long-poll returns as soon as a message arrives; skip the interval
+          // sleep while traffic flows so delivery stays near-instant.
+          if (emitted === 0) {
+            if (loopMin <= 0) break;
+            await Bun.sleep(loopMin * 60_000);
+          }
+        }
         break;
       }
       if (key !== "slack") die("inbound supports slack or telegram");
