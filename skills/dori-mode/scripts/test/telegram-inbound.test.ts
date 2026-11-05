@@ -3,8 +3,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Http, HttpRequest, HttpResponse } from "../src/messenger/http.ts";
+import type { TgInbound } from "../src/messenger/telegram-inbound.ts";
 import { Telegram } from "../src/messenger/telegram.ts";
-import { envInt, fileTgInboundStore, pollTelegramInbound } from "../src/messenger/telegram-inbound.ts";
+import { envInt, fileTgInboundStore, pollTelegramInbound, telegramInboundLoop } from "../src/messenger/telegram-inbound.ts";
 import { fakeClock, withState } from "./fakes.ts";
 
 const OWNER = 5250;
@@ -242,4 +243,43 @@ test("envInt refuses empty, whitespace, 1e3 and 0x10; accepts plain integers", (
   expect(envInt("DORI_TELEGRAM_OWNER_ID", " 42 ")).toBe(42);
   expect(envInt("DORI_TELEGRAM_TOPIC_ID", "-5")).toBe(-5);
   expect(envInt("DORI_TELEGRAM_GROUP_ID", "0")).toBe(0);
+});
+
+test("one-shot (no --loop) returns after a single bounded poll under continuous traffic", async () => {
+  // Continuous traffic: every poll would return another message if polled again.
+  const { http } = telegramFake(Array.from({ length: 20 }, (_, i) => [{ update_id: 100 + i, message: msg(OWNER, OWNER, "private", `msg ${i}`) }]));
+  const store = fileTgInboundStore(join(state.dir, "tg-off-oneshot"));
+  const out: TgInbound[] = [];
+  await telegramInboundLoop(mk(http), store, { ownerId: OWNER }, 0, (i) => out.push(i));
+  // Returns, and drained exactly one poll's batch — not the whole stream.
+  expect(out).toHaveLength(1);
+  expect(out[0]!.updateId).toBe(100);
+});
+
+test("--loop re-polls immediately after a productive poll and sleeps only when idle", async () => {
+  const { http } = telegramFake([
+    [{ update_id: 200, message: msg(OWNER, OWNER, "private", "burst") }],
+    [],
+  ]);
+  const store = fileTgInboundStore(join(state.dir, "tg-off-loop"));
+  const out: TgInbound[] = [];
+  const sleeps: number[] = [];
+  const stop = new Error("STOP");
+  // The first idle sleep throws to end the loop for the test.
+  await telegramInboundLoop(
+    mk(http),
+    store,
+    { ownerId: OWNER },
+    1,
+    (i) => out.push(i),
+    () => {},
+    async (ms) => {
+      sleeps.push(ms);
+      throw stop;
+    },
+  ).catch((e: unknown) => {
+    if (e !== stop) throw e;
+  });
+  expect(out.map((i) => i.updateId)).toEqual([200]); // productive poll, then immediate re-poll
+  expect(sleeps).toEqual([60_000]); // slept only after the idle poll
 });

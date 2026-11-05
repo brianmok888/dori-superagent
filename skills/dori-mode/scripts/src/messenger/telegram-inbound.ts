@@ -45,6 +45,34 @@ export const envInt = (name: string, raw: string | undefined): number => {
 
 export type TgInboundStore = { load(): number; save(offset: number): void };
 
+/**
+ * The inbound watch loop. Without `--loop` (loopMin <= 0) it is one-shot: a single
+ * bounded poll, then it returns — scripts rely on that. With `--loop`, it re-polls
+ * immediately after any poll that emitted a line (the 25s long-poll already returns
+ * on arrival, so bursts deliver without waiting out the interval) and only sleeps
+ * after an idle poll.
+ */
+export const telegramInboundLoop = async (
+  tg: Telegram,
+  store: TgInboundStore,
+  opts: TgInboundOptions,
+  loopMin: number,
+  emit: (inbound: TgInbound) => void = () => {},
+  warn: (message: string) => void = () => {},
+  sleep: (ms: number) => Promise<void> = (ms) => Bun.sleep(ms),
+): Promise<void> => {
+  for (;;) {
+    let emitted = 0;
+    try {
+      emitted = (await pollTelegramInbound(tg, store, opts, emit)).length;
+    } catch (e) {
+      warn(e instanceof Error ? e.message : String(e));
+    }
+    if (loopMin <= 0) return; // one-shot: one bounded drain
+    if (emitted === 0) await sleep(loopMin * 60_000);
+  }
+};
+
 export const fileTgInboundStore = (path: string): TgInboundStore => {
   // load() runs on every poll; a corrupt file must warn once, not once per poll.
   let warned = false;
