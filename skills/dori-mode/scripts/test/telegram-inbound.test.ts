@@ -183,10 +183,32 @@ test("edited messages arrive as their own edit kind with the edited text", async
   expect(out.length).toBe(1);
   expect(out[0]!.kind).toBe("edit");
   expect(out[0]!.text).toBe("fixed typo");
+  expect(out[0]!.messageId).toBe(1); // the message_id of the message being edited
   expect(store.load()).toBe(91);
   expect(bodies[0]!.allowed_updates).toEqual(["message", "edited_message"]);
   const second = await pollTelegramInbound(mk(http), store, { ownerId: OWNER });
   expect(second[0]!.kind).toBe("message");
+});
+
+test("live-location edit refreshes carry no text and are dropped, not one line each", async () => {
+  const realEdit = { update_id: 200, edited_message: { ...msg(OWNER, OWNER, "private", "moved the pin"), edit_date: 1730 } };
+  const locEdits = Array.from({ length: 6 }, (_, i) => ({
+    update_id: 201 + i,
+    edited_message: {
+      message_id: 42,
+      from: { id: OWNER, is_bot: false, username: "owner" },
+      chat: { id: OWNER, type: "private" },
+      location: { latitude: 1.3 + i * 0.0001, longitude: 103.8 },
+      edit_date: 1731 + i,
+    },
+  }));
+  // One getUpdates response can carry the whole burst, and so can one poll.
+  const { http } = telegramFake([[realEdit, ...locEdits]]);
+  const store = fileTgInboundStore(join(state.dir, "tg-off-loc"));
+  const out = await pollTelegramInbound(mk(http), store, { ownerId: OWNER });
+  expect(out.length).toBe(1); // the text edit survives
+  expect(out[0]!.text).toBe("moved the pin");
+  expect(store.load()).toBe(207); // the location stream was consumed, not replayed
 });
 
 test("a voice note identifies its media so transcribe can fetch it", async () => {
@@ -216,8 +238,8 @@ test("a photo with a caption carries both the text and the largest photo", async
 test("an unparseable offset warns once across several polls and restarts from 0", async () => {
   writeFileSync(join(state.dir, "telegram-offset"), "not-a-number");
   const warns: string[] = [];
-  const orig = console.error;
-  console.error = (s?: unknown) => {
+  const orig = console.log;
+  console.log = (s?: unknown) => {
     warns.push(String(s));
   };
   try {
@@ -228,7 +250,7 @@ test("an unparseable offset warns once across several polls and restarts from 0"
     for (let i = 0; i < 3; i++) await pollTelegramInbound(tg, store, { ownerId: OWNER });
     expect(store.load()).toBe(0);
   } finally {
-    console.error = orig;
+    console.log = orig;
   }
   expect(warns).toHaveLength(1);
   expect(warns[0]).toContain("WARN");

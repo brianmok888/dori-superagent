@@ -14,6 +14,8 @@ export type TgInbound = {
   readonly chat: number;
   readonly thread?: number;
   readonly updateId: number;
+  /** The Telegram message_id — the id a later edit replaces (edit lines print it as mid=). */
+  readonly messageId?: number;
   readonly from: number;
   readonly username?: string;
   readonly text?: string;
@@ -84,7 +86,8 @@ export const fileTgInboundStore = (path: string): TgInboundStore => {
           // A corrupt offset must not silently replay the whole history.
           if (!warned) {
             warned = true;
-            console.error(`WARN telegram-offset at ${path} is unparseable (${n}); restarting from 0 (warned once)`);
+            // stdout like every other inbound WARN, so a monitor filtering stdout sees it.
+            console.log(`WARN telegram-offset at ${path} is unparseable (${n}); restarting from 0 (warned once)`);
           }
           return 0;
         }
@@ -112,6 +115,7 @@ type TgMessage = {
   readonly message_thread_id?: number;
   readonly text?: string;
   readonly caption?: string;
+  readonly location?: unknown;
   readonly voice?: TgFile;
   readonly audio?: TgFile;
   readonly video?: TgFile;
@@ -183,11 +187,18 @@ export const pollTelegramInbound = async (
       store.save(u.update_id + 1);
       continue;
     }
+    // A live location arrives as a stream of edited_message updates carrying no new
+    // text; emitting one line per refresh would flood the consumer. Drop them.
+    if (kind === "edit" && m!.location !== undefined && m!.text === undefined && m!.caption === undefined) {
+      store.save(u.update_id + 1);
+      continue;
+    }
     const source = m!.chat!.type === "private" ? "dm" : "topic";
     const thread = source === "topic" ? threadOf(m!) ?? 1 : threadOf(m!);
     const inbound: TgInbound = {
       kind,
       source,
+      ...(m!.message_id === undefined ? {} : { messageId: m!.message_id }),
       chat: Number(m!.chat!.id),
       ...(thread === undefined ? {} : { thread }),
       updateId: u.update_id,
