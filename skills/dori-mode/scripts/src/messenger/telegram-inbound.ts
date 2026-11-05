@@ -45,27 +45,34 @@ export const envInt = (name: string, raw: string | undefined): number => {
 
 export type TgInboundStore = { load(): number; save(offset: number): void };
 
-export const fileTgInboundStore = (path: string): TgInboundStore => ({
-  load(): number {
-    try {
-      const n = Number(readFileSync(path, "utf8").trim());
-      if (!Number.isSafeInteger(n) || n < 0) {
-        // A corrupt offset must not silently replay the whole history.
-        console.error(`WARN telegram-offset at ${path} is unparseable (${n}); restarting from 0`);
-        return 0;
+export const fileTgInboundStore = (path: string): TgInboundStore => {
+  // load() runs on every poll; a corrupt file must warn once, not once per poll.
+  let warned = false;
+  return {
+    load(): number {
+      try {
+        const n = Number(readFileSync(path, "utf8").trim());
+        if (!Number.isSafeInteger(n) || n < 0) {
+          // A corrupt offset must not silently replay the whole history.
+          if (!warned) {
+            warned = true;
+            console.error(`WARN telegram-offset at ${path} is unparseable (${n}); restarting from 0 (warned once)`);
+          }
+          return 0;
+        }
+        return n;
+      } catch {
+        return 0; // no file yet: a fresh start, not a warning
       }
-      return n;
-    } catch {
-      return 0; // no file yet: a fresh start, not a warning
-    }
-  },
-  save(offset: number): void {
+    },
+    save(offset: number): void {
     // The state dir may not exist yet on a fresh install; without this the first save
     // fails with ENOENT and the same update is re-printed every tick.
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, String(offset));
-  },
-});
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, String(offset));
+    },
+  };
+};
 
 type TgFile = { readonly file_id?: string };
 type TgUser = { readonly id: number; readonly is_bot?: boolean; readonly username?: string; readonly first_name?: string };
