@@ -411,7 +411,7 @@ try {
           loopMin,
           (i) =>
             console.log(
-              `INBOUND ${i.kind === "edit" ? "edit:" : ""}${i.source} ${i.chat} ${i.thread ?? "-"} ${i.updateId}${i.kind === "edit" && i.messageId !== undefined ? ` mid=${i.messageId}` : ""} ${i.from} ${JSON.stringify(i.text ?? "")}` +
+              `INBOUND ${i.kind === "edit" ? "edit:" : ""}${i.source} ${i.chat} ${i.thread ?? "-"} ${i.updateId} mid=${i.messageId ?? "-"} ${i.from} ${JSON.stringify(i.text ?? "")}` +
                 (i.media === undefined ? "" : ` file=${i.media.kind}:${i.media.fileId}`),
             ),
           (m) => console.log(`WARN ${m}`.slice(0, 300)),
