@@ -127,6 +127,10 @@ Both print `PAUSED` / `RESUMED` and exit 0 on success. A lane in any other state
 ### `dori watch`
 Runs forever. Every 30 seconds it prints each new claim once (`LANE_DONE_CLAIMED`). Claims older than `closeAfterMin` are settled: unpushed or uncommitted work and failing signals turn into objections (`LANE_NOT_DONE`); otherwise the lane is closed (`LANE_CLOSED`). The deadline lives in the registry, so a restart picks up where it left off.
 
+### `dori heartbeat [--loop MIN]`
+
+Prints `HEARTBEAT <rfc3339>` once and exits; with `--loop MIN` it beats every MIN minutes, like the other monitors. It reads and writes nothing: a pure liveness wake for a reactor lead — one that runs with no goal, so the engine parks it after each turn and every monitor line (`INBOUND`, a lane's report or nudge, `HEARTBEAT`) is exactly one wake: read, act, park. Goal-looped leads do not arm it; their loop is its own liveness.
+
 ### `dori freshness [--loop MIN]`
 For working lanes that have gone quiet: a nudge in the pane after `nudgeAfterMin`, then the lane's last `[REPORT]` line posted to its thread after `postAfterMin`, with home paths and pane ids scrubbed. Each happens once per silence. The line is posted only once it is still the last `[REPORT]` line on the next tick (`PENDING-REPORT` the first time) and differs from the line posted last time (`STALE-REPORT` otherwise). A `[REPORT]` line counts when it starts the row or is a whole quoted element of an argv array, the shape lanes send it in (`["herdr", "pane", "run", "<lead pane>", "[REPORT] key | kind | text"]`). Prose that quotes the grammar mid-sentence, and a report whose text is one unfilled placeholder, are not reports. A held-back outcome is printed once per change, not on every tick. A nudge reports its delivery as `delivered` (the agent status moved to working) or `unconfirmed`.
 

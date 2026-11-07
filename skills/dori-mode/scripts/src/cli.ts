@@ -59,6 +59,7 @@ const USAGE = `dori <command> [options]
   pause  <key> [--note TEXT]           the owner said wait: goal paused (read back), running turn stopped, no nudges; exit 3 if unconfirmed
   resume <key> [--note TEXT]           undo pause: goal resumed (read back), lane back to its earlier status
   watch                                long-running: emits LANE_* lines every 30 s
+  heartbeat [--loop MIN]               print HEARTBEAT <rfc3339>: the reactor lead's liveness wake
   freshness [--loop MIN]               nudge silent lanes, post their last report via hooks.threadReply
   dead-panes [--loop MIN]              print DEAD_PANE <id> for stopped agent panes
   guard [--loop MIN]                   host load, memory, disk and pane-count alerts
@@ -305,6 +306,9 @@ try {
       await every(loopMin, async () => {
         for (const a of await freshnessTick(deps, process.env.HOME ?? "")) console.log(`${a.kind.toUpperCase()} ${a.lane} ${a.detail}`);
       });
+      break;
+    case "heartbeat":
+      await every(loopMin, async () => { console.log(`HEARTBEAT ${new Date().toISOString()}`); });
       break;
     case "dead-panes": {
       const seen = new Set<string>();

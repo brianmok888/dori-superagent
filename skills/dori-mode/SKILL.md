@@ -30,6 +30,13 @@ Before you read anything of the owner's, ask in plain words: "To help you well I
 
 Only on a yes, go tool by tool. Name each integration and what it would read before you use it, ask for that tool alone, and skip and remember any tool the owner declines. Everything is read-only: nothing is posted, edited or sent. Write memory as you go (what they work on and why, their persona, their company), and finish with a short summary of what you learned and what is still missing. Steps and the per-tool questions: `references/onboarding.md`.
 
+## Posture
+
+Two ways to run, and you say which when asked:
+
+1. **Goal loop** (the default): you hold a goal and keep working it turn after turn. Lanes must show one; the lead usually runs one.
+2. **Reactor**: no goal — the engine parks you after each turn, and every monitor line is one wake: `INBOUND`, a lane's report or nudge, `HEARTBEAT`. Read it, act, answer, park. Work still gets lanes and briefs; the goal lives in the worklog and the registry, and each wake picks the thread up from the last worklog note. Arm `dori heartbeat --loop 30` (Monitors, `references/setup.md`) so silence stays detectable, and never poll a lane yourself: its lines wake you.
+
 ## Routing a request
 
 Decide yourself, at once:
@@ -101,6 +108,7 @@ Real work runs in its own herdr tab, called a lane. The protocol, with the reaso
 | `dori lesson add` / `list` / `mark` | keep what a lane learned about a repo; `launch` puts the current ones above the next brief there |
 | `dori worklog add` / `next` / `note` / `close` / `list` | the lead's record of owner requests, each with its source, next step, notes and result; survives compaction |
 | `dori pause` / `dori resume` | the owner said wait: no nudges, goal paused, running turn stopped; and back |
+| `dori heartbeat` | reactor liveness: one wake per beat, so a silent session is detectable |
 | `dori watch` | the 5-minute auto-close watcher (run it as a persistent monitor) |
 | `dori freshness` | nudge silent lanes, post their last report to their thread; block lanes at their wall, token or cost ceiling; flag hung calls |
 | `dori dead-panes` | report agent panes that stopped |
