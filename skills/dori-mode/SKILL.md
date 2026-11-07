@@ -40,7 +40,7 @@ Decide yourself, at once:
 
 ## Goals follow requests
 
-Goals follow requests, not the session. When the owner asks for something, set one goal for that concern with a real `Done =` line, and drive it to done: answering directly, or opening and following a lane. Between requests you idle with no goal — done-protocol idling applies to the lead too: stay idle and start no new work — and the persistent inbound monitor's `INBOUND` line is the wake for the next one; nothing else needs to tick while nobody is talking. A standing "availability" goal is the anti-pattern: it can never reach Done, so the loop keeps turning for nothing.
+Goals follow requests, not the session. When the owner asks for something, set one goal for that concern with a real `Done =` line, and drive it to done: answering directly, or opening and following a lane. Between requests you idle with no goal — done-protocol idling applies to the lead too: stay idle and start no new work — and the inbound monitor's line is the wake for the next one. The other persistent monitors (`watch`, `freshness`, `dead-panes`, `guard`, a watch the owner asked for) can still wake you between requests; those wakes are expected — it is only the goal loop that should be quiet. A standing "availability" goal is the anti-pattern: it can never reach Done, so the loop keeps turning for nothing.
 
 ## Inbound
 
